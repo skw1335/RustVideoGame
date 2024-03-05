@@ -8,3 +8,14 @@ https://bfnightly.bracketproductions.com/chapter_0.html
 
 Work in progress
 
+#######################################################################################################################
+
+To download and run on local:
+
+The original tutorial has a great way to help you get started with rust/cargo, 
+
+you can download the src folder using: https://download-directory.github.io
+
+make sure your Cargo.toml matches the one here or else it won't work. 
+
+
