@@ -1,5 +1,5 @@
 use specs::prelude::*;
-use super::{WantsToPickupItem, WantsToDropItem, Name, Map, InBackpack, Position, gamelog::GameLog, WantsToUseItem, CombatStats, ProvidesHealing, Consumable, InflictsDamage, SufferDamage, AreaOfEffect, Confusion};
+use super::{WantsToPickupItem, WantsToDropItem, Name, Map, InBackpack, Position, gamelog::GameLog, WantsToUseItem, CombatStats, ProvidesHealing, Consumable, InflictsDamage, SufferDamage, AreaOfEffect, Confusion, Equippable, Equipped, WantsToRemoveItem, particle_system::ParticleBuilder};
 
 pub struct ItemCollectionSystem {}
 
@@ -45,13 +45,18 @@ impl<'a> System<'a> for ItemUseSystem {
                         WriteStorage<'a, CombatStats>,
                         WriteStorage<'a, SufferDamage>,
                         ReadStorage<'a, AreaOfEffect>,
-                        WriteStorage<'a, Confusion>
+                        WriteStorage<'a, Confusion>,
+                        ReadStorage<'a, Equippable>,
+                        WriteStorage<'a, Equipped>,
+                        WriteStorage<'a, InBackpack>,
+                        WriteExpect<'a, ParticleBuilder>,
+                        ReadStorage<'a, Position>
                     );
-
+    #[allow(clippy::cognitive_complexity)]
     fn run(&mut self, data : Self::SystemData) {
         let (player_entity, mut gamelog, map, entities, mut wants_use, 
              names, consumables, healing, inflict_damage, mut combat_stats, 
-             mut suffer_damage, aoe, mut confused) = data;
+             mut suffer_damage, aoe, mut confused, equippable, mut equipped, mut backpack, mut particle_builder, positions) = data;
 
         for (entity, useitem) in (&entities, &wants_use).join() {
             let mut used_item = true;
@@ -79,11 +84,43 @@ impl<'a> System<'a> for ItemUseSystem {
                             for mob in map.tile_content[idx].iter() {
                                 targets.push(*mob);
                                 }
+                        particle_builder.request(tile_idx.x, tile_idx.y, rltk::RGB::named(rltk::ORANGE), rltk::RGB::named(rltk::BLACK), rltk::to_cp437('░'), 200.0);    
                             }
                         }
                     }
                 }
             }
+            //If it is equippable, then we want to equip it, and unequip whatever was in the slot
+            let item_equippable = equippable.get(useitem.item);
+            match item_equippable {
+                None => {}
+                Some(can_equip) => {
+                    let target_slot = can_equip.slot;
+                    let target = targets[0];
+
+                    // Remove any items the target has in the item's slot
+                    let mut to_unequip : Vec<Entity> = Vec::new();
+                    for (item_entity, already_equipped, name) in (&entities, &equipped, &names).join() {
+                        if already_equipped.owner == target && already_equipped.slot == target_slot {
+                            to_unequip.push(item_entity);
+                            if target == *player_entity {
+                                gamelog.entries.push(format!("You unequip {}.", name.name));
+                            }
+                        }
+                    }
+                    for item in to_unequip.iter() {
+                        equipped.remove(*item);
+                        backpack.insert(*item, InBackpack{ owner: target }).expect("Unable to insert backpack entry");
+                    }
+                    //Wield the item
+                    equipped.insert(useitem.item, Equipped { owner: target, slot: target_slot }).expect("Unable to insert equipped component");
+                    backpack.remove(useitem.item);
+                    if target == *player_entity {
+                        gamelog.entries.push(format!("You equip {}.", names.get(useitem.item).unwrap().name));
+                    }
+                }
+            }
+
             //Healing Items, if it heals, apply the healing
             let item_heals = healing.get(useitem.item);
             match item_heals {
@@ -95,9 +132,15 @@ impl<'a> System<'a> for ItemUseSystem {
                         if let Some(stats) = stats {
                                 stats.hp = i32::min(stats.max_hp, stats.hp + healer.heal_amount);  
                                 if entity == *player_entity {
-                                gamelog.entries.push(format!("You drink the {}, healing {} hp.", names.get(useitem.item).unwrap().name, healer.heal_amount));
-                        }
+                                    gamelog.entries.push(format!("You drink the {}, healing {} hp.", names.get(useitem.item).unwrap().name, healer.heal_amount));
+                                
+                                }                       
                                 used_item = true;
+
+                                let pos = positions.get(*target);
+                                if let Some(pos) = pos {
+                                    particle_builder.request(pos.x, pos.y, rltk::RGB::named(rltk::GREEN), rltk::RGB::named(rltk::BLACK), rltk::to_cp437('♡'), 200.0);
+                            }
                         }
                     }
                 }
@@ -134,6 +177,11 @@ impl<'a> System<'a> for ItemUseSystem {
                             let mob_name = names.get(*mob).unwrap();
                             let item_name = names.get(useitem.item).unwrap();
                             gamelog.entries.push(format!("You use {} on {}, confusing them.", item_name.name, mob_name.name));
+                        
+                            let pos = positions.get(*mob);
+                            if let Some(pos) = pos {
+                                particle_builder.request(pos.x, pos.y, rltk::RGB::named(rltk::MAGENTA), rltk::RGB::named(rltk::BLACK), rltk::to_cp437('?'), 200.0);
+                            }    
                         }
                     }
                 }
@@ -194,5 +242,23 @@ impl<'a> System<'a> for ItemDropSystem {
     }
 }
 
+pub struct ItemRemoveSystem {}
 
+impl <'a> System <'a> for ItemRemoveSystem {
+    #[allow(clippy::type_complexity)]
+    type SystemData = (
+                        Entities<'a>,
+                        WriteStorage<'a, WantsToRemoveItem>,
+                        WriteStorage<'a, Equipped>,
+                        WriteStorage<'a, InBackpack>
+                      );
+    fn run(&mut self, data : Self::SystemData) {
+        let (entities, mut wants_remove, mut equipped, mut backpack) = data;
+        for (entity, to_remove) in (&entities, &wants_remove).join() {
+            equipped.remove(to_remove.item);
+            backpack.insert(to_remove.item, InBackpack{ owner: entity }).expect("Unable to insert backpack");
+        }
 
+        wants_remove.clear();
+    }
+}

@@ -19,6 +19,13 @@ pub struct Renderable {
     pub render_order : i32
 }
 
+
+#[derive(Component, Serialize, Deserialize, Clone)]
+pub struct ParticleLifetime {
+    pub lifetime_ms : f32
+}
+
+
 #[derive(Component, Serialize, Deserialize, Clone)]
 pub struct Player {}
 
@@ -87,7 +94,8 @@ impl SufferDamage {
         }
     }
 }
-
+//Items 
+//
 #[derive(Component, Debug, ConvertSaveload, Clone)]
 pub struct AreaOfEffect {
     pub radius : i32
@@ -112,14 +120,42 @@ pub struct WantsToUseItem {
     pub item : Entity,
     pub target : Option<rltk::Point>
 }
+#[derive(Component, Debug, ConvertSaveload, Clone)]
+pub struct WantsToRemoveItem {
+    pub item : Entity
+}
+// EQUIPMENT
+//
+#[derive(PartialEq, Copy, Clone, Serialize, Deserialize)]
+pub enum EquipmentSlot { Melee, Shield }
 
+#[derive(Component, Serialize, Deserialize, Clone)]
+pub struct Equippable {
+    pub slot : EquipmentSlot
+}
 
+#[derive(Component, ConvertSaveload, Clone)]
+pub struct Equipped {
+    pub owner : Entity,
+    pub slot : EquipmentSlot
+}
 //Status Effects
 
 
 #[derive(Component, Debug, ConvertSaveload, Clone)]
 pub struct Confusion {
     pub turns : i32
+}
+// Stats
+//
+#[derive(Component, ConvertSaveload, Clone)]
+pub struct MeleePowerBonus {
+    pub power : i32
+}
+
+#[derive(Component, ConvertSaveload, Clone)]
+pub struct DefenseBonus {
+    pub defense : i32
 }
 
 //Serialize/Deserialize
