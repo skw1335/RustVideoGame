@@ -158,6 +158,12 @@ pub struct DefenseBonus {
     pub defense : i32
 }
 
+// Spells
+
+#[derive(Component, Debug, Serialize, Deserialize, Clone)]
+pub struct MagicMapper {}
+
+
 //Serialize/Deserialize
 pub struct SerializeMe;
 

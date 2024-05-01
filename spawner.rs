@@ -1,6 +1,6 @@
 use rltk::{RGB, RandomNumberGenerator, }; 
 use specs::prelude::*;
-use super::{CombatStats, Player, Renderable, Name, Position, Rect, Viewshed, Monster, BlocksTile, map::MAPWIDTH, Item, Consumable, ProvidesHealing, Ranged, InflictsDamage, AreaOfEffect, Confusion, SerializeMe, random_table::RandomTable, EquipmentSlot, Equippable, MeleePowerBonus, DefenseBonus};
+use super::{CombatStats, Map, TileType, Player, Renderable, Name, Position, Rect, Viewshed, Monster, BlocksTile, map::MAPWIDTH, Item, Consumable, ProvidesHealing, Ranged, InflictsDamage, AreaOfEffect, Confusion, SerializeMe, random_table::RandomTable, EquipmentSlot, Equippable, MeleePowerBonus, DefenseBonus};
 use specs::saveload::{MarkedBuilder, SimpleMarker};
 use std::collections::HashMap;
 
@@ -60,35 +60,55 @@ fn monster<S : ToString>(ecs: &mut World, x: i32, y: i32, glyph : rltk::FontChar
         .build();
 }
 pub fn spawn_room(ecs: &mut World, room : &Rect, map_depth: i32) {
+    let mut possible_targets : Vec<usize> = Vec::new();
+    //scope to keep access to the map seperated
+    {
+       let map = ecs.fetch::<Map>();
+       for y in room.y1 + 1 .. room.y2 {
+           for x in room.x1 + 1 .. room.x2 {
+               let idx = map.xy_idx(x, y);
+               if map.tiles[idx] == TileType::Floor {
+                   possible_targets.push(idx);
+               }
+           }
+       }
+    }
+
+    spawn_region(ecs, &possible_targets, map_depth);
+}
+
+pub fn spawn_region(ecs: &mut World, area : &[usize], map_depth: i32) {
     let spawn_table = room_table(map_depth);
     let mut spawn_points : HashMap<usize, String> = HashMap::new();
+    let mut areas : Vec<usize> = Vec::from(area);
 
-    //scope to keep borrow checker happy 
-    {
+    // Scope to keep the borrow checker happy
+    { 
         let mut rng = ecs.write_resource::<RandomNumberGenerator>();
-        let num_spawns = rng.roll_dice(1, MAX_MONSTERS + 3) + (map_depth - 1) - 3;
-        
-        for _i in 0 .. num_spawns {
-            let mut added = false;
-            let mut tries = 0;
-            while !added && tries < 20 {
-                let x = (room.x1 + rng.roll_dice(1, i32::abs(room.x2 - room.x1))) as usize;
-                let y = (room.y1 + rng.roll_dice(1, i32::abs(room.y2 - room.y1))) as usize;
-                let idx = (y * MAPWIDTH) + x;
-                if !spawn_points.contains_key(&idx) {
-                    spawn_points.insert(idx, spawn_table.roll(&mut rng));
-                    added = true;
-                } else {
-                    tries += 1;
-                }
-            }
-        }
-    }
+        let num_spawns = i32::min(areas.len() as i32, rng.roll_dice(1, MAX_MONSTERS + 3) + (map_depth - 1) - 3);
+        if num_spawns == 0 { return; }
     
-    //Actually spawn the monsters/potions
+        for _i in 0 .. num_spawns {
+            let array_index = if areas.len() == 1 { 0usize } else { (rng.roll_dice(1, areas.len() as i32)-1) as usize };
+            let map_idx = areas[array_index];
+            spawn_points.insert(map_idx, spawn_table.roll(&mut rng));
+            areas.remove(array_index);
+        }
+    }     
+
+    // Actually spawn the monsters
     for spawn in spawn_points.iter() {
-        let x = (*spawn.0 % MAPWIDTH) as i32;
-        let y = (*spawn.0 / MAPWIDTH) as i32;
+        spawn_entity(ecs, &spawn);
+    }
+}
+
+
+
+
+fn spawn_entity(ecs: &mut World, spawn : &(&usize, &String)) {
+    let x = (*spawn.0 % MAPWIDTH) as i32;
+    let y = (*spawn.0 / MAPWIDTH) as i32; 
+    //Actually spawn the monsters/potions
 
         match spawn.1.as_ref() {
             "Goblin" => goblin(ecs, x, y),
@@ -102,9 +122,9 @@ pub fn spawn_room(ecs: &mut World, room : &Rect, map_depth: i32) {
             "Longsword" => longsword(ecs, x, y),
             "Tower Shield" => tower_shield(ecs, x, y),
             _ => {}
-        }
     }
 }
+
 fn health_potion(ecs: &mut World, x: i32, y: i32) {
     ecs.create_entity()
         .with(Position{ x, y })
@@ -242,3 +262,4 @@ fn tower_shield(ecs: &mut World, x: i32, y: i32) {
         .marked::<SimpleMarker<SerializeMe>>()
         .build();
 }
+
