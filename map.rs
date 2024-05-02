@@ -62,7 +62,7 @@ impl Map {
     }
 
     pub fn xy_idx(&self, x: i32, y: i32) -> usize {
-        (y as usize * 80) + x as usize
+        (y as usize * self.width as usize) + x as usize
     }
 
     pub fn clear_content_index(&mut self) {
@@ -144,7 +144,7 @@ pub fn draw_map(map :  &Map, ctx : &mut Rltk) {
 
             // Move the coordinates
             x += 1;
-            if x > 79 {
+            if x > MAPWIDTH as i32-1{
                 x = 0;
                 y += 1;
         }

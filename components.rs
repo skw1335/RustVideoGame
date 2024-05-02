@@ -139,6 +139,7 @@ pub struct Equipped {
     pub owner : Entity,
     pub slot : EquipmentSlot
 }
+
 //Status Effects
 
 

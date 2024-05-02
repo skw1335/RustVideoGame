@@ -1,5 +1,5 @@
 use specs::prelude::*;
-use super::{WantsToPickupItem, WantsToDropItem, Name, Map, InBackpack, Position, gamelog::GameLog, WantsToUseItem, CombatStats, ProvidesHealing, Consumable, InflictsDamage, SufferDamage, AreaOfEffect, Confusion, Equippable, Equipped, WantsToRemoveItem, particle_system::ParticleBuilder};
+use super::{MagicMapper, RunState, WantsToPickupItem, WantsToDropItem, Name, Map, InBackpack, Position, gamelog::GameLog, WantsToUseItem, CombatStats, ProvidesHealing, Consumable, InflictsDamage, SufferDamage, AreaOfEffect, Confusion, Equippable, Equipped, WantsToRemoveItem, particle_system::ParticleBuilder};
 
 pub struct ItemCollectionSystem {}
 
@@ -50,13 +50,15 @@ impl<'a> System<'a> for ItemUseSystem {
                         WriteStorage<'a, Equipped>,
                         WriteStorage<'a, InBackpack>,
                         WriteExpect<'a, ParticleBuilder>,
-                        ReadStorage<'a, Position>
+                        ReadStorage<'a, Position>,
+                        ReadStorage<'a, MagicMapper>,
+                        WriteExpect<'a, RunState>
                     );
     #[allow(clippy::cognitive_complexity)]
     fn run(&mut self, data : Self::SystemData) {
         let (player_entity, mut gamelog, map, entities, mut wants_use, 
              names, consumables, healing, inflict_damage, mut combat_stats, 
-             mut suffer_damage, aoe, mut confused, equippable, mut equipped, mut backpack, mut particle_builder, positions) = data;
+             mut suffer_damage, aoe, mut confused, equippable, mut equipped, mut backpack, mut particle_builder, positions, magic_mapper, mut runstate) = data;
 
         for (entity, useitem) in (&entities, &wants_use).join() {
             let mut used_item = true;
@@ -120,7 +122,16 @@ impl<'a> System<'a> for ItemUseSystem {
                     }
                 }
             }
-
+            //Magic Mapper
+            let is_mapper = magic_mapper.get(useitem.item);
+            match is_mapper {
+                None => {}
+                Some(_) => {
+                    used_item = true;
+                    gamelog.entries.push("The map is revelead to you!".to_string());
+                    *runstate = RunState::MagicMapReveal {row : 0};
+                }
+            }
             //Healing Items, if it heals, apply the healing
             let item_heals = healing.get(useitem.item);
             match item_heals {

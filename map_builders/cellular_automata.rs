@@ -63,7 +63,7 @@ impl CellularAutomataBuilder {
         
         // First we completely randomize the map, setting 55% of it to be floor.
         for y in 1..self.map.height-1 {
-            for x in 1..self.map.height-1 {
+            for x in 1..self.map.width-1 {
                 let roll = rng.roll_dice(1, 100);
                 let idx = self.map.xy_idx(x, y);
                 if roll > 55 { self.map.tiles[idx] = TileType::Floor }
@@ -102,13 +102,53 @@ impl CellularAutomataBuilder {
             self.take_snapshot();
         }
      // Placing the Player
-     self.starting_position = Position { x: self.map.width / 2, y: 0 };
+     self.starting_position = Position { x: self.map.width / 2, y: self.map.height / 2 };
      let mut start_idx = self.map.xy_idx(self.starting_position.x, self.starting_position.y);
      while self.map.tiles[start_idx] != TileType::Floor {
          self.starting_position.y += 1;
          start_idx = self.map.xy_idx(self.starting_position.x, self.starting_position.y);
      }
      //Placing the exit
+     let mut rng = RandomNumberGenerator::new();
+     let roll = rng.roll_dice(4, 4);
+     match roll {
+         // Left side of map
+         1 => { 
+             let edge = 0;
+                for i in 0..self.map.height-1 {
+                    let idx = self.map.xy_idx(edge, i);
+                }
+         }
+         // Top side of map
+         2 => {
+             let edge = self.map.height-1;
+                for i in 0..self.map.width-1 {
+                    let idx = self.map.xy_idx(i, edge);
+            }
+         }
+         // Right side of map
+         3 => { 
+             let edge = self.map.width-1; 
+                for i in 0..self.map.height-1 {
+                    let idx = self.map.xy_idx(edge, i);
+                }
+         }
+         // Bottom side of map
+    //     4 => { 
+      //        let mut edge = 0;
+        //      let mut i = 0;
+          //      while i < self.map.width-1 {
+            //        i += 1;
+              //      let idx = self.map.xy_idx(i, edge);
+                //    if self.map.tiles[idx] == TileType::Floor {
+                  //      self.map.tiles[idx] = TileType::DownStairs;
+                    //} else { edge += 1;
+                    //         i = 0;
+             //   }
+      //   }
+  //  }
+         _ => {}
+     }
      // todo
     
      // Build a noise map for spawning entities 
